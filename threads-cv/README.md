@@ -226,3 +226,14 @@ number of sleep points in the code; the remaining sleep slots are
 initialized to be zero.
 
 
+# spurious wakeups
+pthread_cond_wait 为何要与while(condition)配合
+
+[Why does pthread_cond_wait have spurious wakeups?
+](https://stackoverflow.com/questions/8594591/why-does-pthread-cond-wait-have-spurious-wakeups)
+![image](https://user-images.githubusercontent.com/2216435/91381479-11b50c80-e85a-11ea-9266-d6004536a631.png)
+
+[understanding of pthread_cond_wait() and pthread_cond_signal](https://stackoverflow.com/questions/16522858/understanding-of-pthread-cond-wait-and-pthread-cond-signal)
+![image](https://user-images.githubusercontent.com/2216435/91381635-76706700-e85a-11ea-87d0-6a9798fb216c.png)
+![image](https://user-images.githubusercontent.com/2216435/91381896-06161580-e85b-11ea-85cd-f40352235073.png)
+
