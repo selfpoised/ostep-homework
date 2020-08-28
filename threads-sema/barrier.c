@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "common_threads.h"
+#include "zem.c"
 
 // If done correctly, each child should print their "before" message
 // before either prints their "after" message. Test by adding sleep(1)
@@ -14,6 +15,10 @@
 
 typedef struct __barrier_t {
     // add semaphores and other information here
+    Zem_t z1; 
+    Zem_t z2; 
+    int count;
+    int loop;
 } barrier_t;
 
 
@@ -22,10 +27,32 @@ barrier_t b;
 
 void barrier_init(barrier_t *b, int num_threads) {
     // initialization code goes here
+    Zem_init(&(b->z1), 1);
+    Zem_init(&(b->z2), 0);
+    b->count = num_threads;
+    b->loop = num_threads;
 }
 
 void barrier(barrier_t *b) {
     // barrier code goes here
+    Zem_wait(&(b->z1));
+    int t = 0;
+    b->count--;
+    t = b->count;
+    Zem_post(&(b->z1));
+
+    if(t > 0){
+        Zem_wait(&(b->z2));
+    }else{
+        for(int i=0;i<b->loop;i++){
+            // sem_wait() decrements (locks) the semaphore pointed to by sem. 
+            // If the semaphore's value is greater than zero, then the decrement proceeds, 
+            // and the function returns, immediately. If the semaphore currently has the value zero, 
+            // then the call blocks until either it becomes possible to perform the decrement (i.e., 
+            // the semaphore value rises above zero), or a signal handler interrupts the call.
+            Zem_post(&(b->z2));
+        }
+    }
 }
 
 //
@@ -70,3 +97,4 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+// gcc -o barrier barrier.c -Wall -pthread
