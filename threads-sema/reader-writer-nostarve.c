@@ -13,21 +13,17 @@ typedef struct __rwlock_t {
     Zem_t lock;
     int readers;
     int writers;
-    int starve;
-
+    int mode;
     Zem_t writelock;
-
-    Zem_t starve_lock;
 } rwlock_t;
 
 
 void rwlock_init(rwlock_t *rw) {
     rw->readers = 0;
     rw->writers = 0;
-    rw->starve = 0;
+    rw->mode = 0;
     Zem_init(&rw->lock, 1);
     Zem_init(&rw->writelock, 1);
-    Zem_init(&rw->starve_lock, 0);
 }
 
 void rwlock_acquire_readlock(rwlock_t *rw) {
@@ -35,12 +31,17 @@ void rwlock_acquire_readlock(rwlock_t *rw) {
     rw->readers++;
     
     printf("thread:%li read acquire %d %d:\n", (unsigned long int)pthread_self(), rw->readers, rw->writers);
-    if (rw->writers == 0 && rw->readers == 1){
-        Zem_wait(&rw->writelock);
+    if (rw->writers == 0){
+        if(rw->readers == 1){
+            Zem_wait(&rw->writelock);
+            rw->mode = 1;
+        }
     } else{
-        Zem_post(&rw->lock);
-        Zem_wait(&rw->writelock);
-        Zem_wait(&rw->lock);
+        if(rw->mode == 0){
+            Zem_post(&rw->lock);
+            Zem_wait(&rw->writelock);
+            Zem_wait(&rw->lock);    
+        }
     }
     
     Zem_post(&rw->lock);
@@ -51,9 +52,11 @@ void rwlock_release_readlock(rwlock_t *rw) {
     rw->readers--;
 
     printf("thread:%li read release %d %d:\n", (unsigned long int)pthread_self(), rw->readers, rw->writers);
-    if (rw->writers == 0){
-        if (rw->readers == 0) // last reader lets it go
+    if (rw->mode == 1){
+        if (rw->readers == 0) {
             Zem_post(&rw->writelock);
+            rw->mode = 0;
+        }
     } else{
         Zem_post(&rw->writelock);
     }
@@ -91,9 +94,12 @@ rwlock_t lock;
 void *reader(void *arg) {
     int i;
     for (i = 0; i < loops; i++) {
-	rwlock_acquire_readlock(&lock);
-    printf("thread:%li read %d\n", (unsigned long int)pthread_self(), value);
-	rwlock_release_readlock(&lock);
+        rwlock_acquire_readlock(&lock);
+        printf("thread:%li read %d\n", (unsigned long int)pthread_self(), value);
+        rwlock_release_readlock(&lock);
+        if(i % 2 == 0){
+            sleep(1);
+        }
     }
     return NULL;
 }
@@ -101,10 +107,13 @@ void *reader(void *arg) {
 void *writer(void *arg) {
     int i;
     for (i = 0; i < loops; i++) {
-	rwlock_acquire_writelock(&lock);
-	value++;
-    printf("thread:%li write %d\n", (unsigned long int)pthread_self(), value);
-	rwlock_release_writelock(&lock);
+        if(i % 3 == 0){
+            sleep(1);
+        }
+        rwlock_acquire_writelock(&lock);
+        value++;
+        printf("thread:%li write %d\n", (unsigned long int)pthread_self(), value);
+        rwlock_release_writelock(&lock);
     }
     return NULL;
 }
