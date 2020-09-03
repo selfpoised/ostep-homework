@@ -33,48 +33,50 @@ void rwlock_init(rwlock_t *rw) {
 void rwlock_acquire_readlock(rwlock_t *rw) {
     Zem_wait(&rw->lock);
     rw->readers++;
-        
-    if (rw->readers == 1) // first reader gets writelock
+    
+    printf("thread:%li read acquire %d %d:\n", (unsigned long int)pthread_self(), rw->readers, rw->writers);
+    if (rw->writers == 0 && rw->readers == 1){
         Zem_wait(&rw->writelock);
-    else {
-        if (rw->writers > 0){
-            rw->starve++;
-            Zem_post(&rw->lock);
-            Zem_wait(&rw->starve_lock);
-            Zem_wait(&rw->lock);
-            rw->starve--;
-        }
+    } else{
+        Zem_post(&rw->lock);
+        Zem_wait(&rw->writelock);
+        Zem_wait(&rw->lock);
     }
-
+    
     Zem_post(&rw->lock);
 }
 
 void rwlock_release_readlock(rwlock_t *rw) {
     Zem_wait(&rw->lock);
     rw->readers--;
-    if (rw->readers == 0) // last reader lets it go
+
+    printf("thread:%li read release %d %d:\n", (unsigned long int)pthread_self(), rw->readers, rw->writers);
+    if (rw->writers == 0){
+        if (rw->readers == 0) // last reader lets it go
+            Zem_post(&rw->writelock);
+    } else{
         Zem_post(&rw->writelock);
+    }
+
     Zem_post(&rw->lock);
 }
 
 void rwlock_acquire_writelock(rwlock_t *rw) {
     Zem_wait(&rw->lock);
     rw->writers++;
+    printf("thread:%li write acquire %d %d:\n", (unsigned long int)pthread_self(), rw->readers, rw->writers);
     Zem_post(&rw->lock);
     
     Zem_wait(&rw->writelock);
 }
 
 void rwlock_release_writelock(rwlock_t *rw) {
-    Zem_post(&rw->writelock);
     Zem_wait(&rw->lock);
-    if (rw->starve > 0){
-        for(int i=0;i<rw->starve;i++){
-            Zem_post(&rw->starve_lock);
-        }
-    }
     rw->writers--;
+    printf("thread:%li write release %d %d:\n", (unsigned long int)pthread_self(), rw->readers, rw->writers);
     Zem_post(&rw->lock);
+
+    Zem_post(&rw->writelock);
 }
 
 //
@@ -136,4 +138,4 @@ int main(int argc, char *argv[]) {
 }
 
 // gcc -o reader-writer-nostarve reader-writer-nostarve.c -Wall -pthread
-// ./reader-writer-nostarve 2 3 5
+// ./reader-writer-nostarve 2 1 5
